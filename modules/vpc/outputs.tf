@@ -13,6 +13,11 @@ output "private_subnets" {
   value       = aws_subnet.private[*].id
 }
 
+output "vpc_cidr_block" {
+  description = "CIDR block of the VPC"
+  value       = aws_vpc.main.cidr_block
+}
+
 output "internet_gateway_id" {
   description = "ID Internet Gateway"
   value       = aws_internet_gateway.igw.id

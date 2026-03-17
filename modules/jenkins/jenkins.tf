@@ -33,50 +33,49 @@ resource "kubernetes_service_account" "jenkins_sa" {
   depends_on = [kubernetes_namespace.jenkins]
 }
 
-resource "aws_iam_role" "jenkins_kaniko_role" {
-  name = "${var.cluster_name}-jenkins-kaniko-role"
+# Data block для assume role політики Jenkins Kaniko
+data "aws_iam_policy_document" "jenkins_kaniko_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [var.oidc_provider_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(var.oidc_provider_url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:jenkins:jenkins-sa"]
+    }
+  }
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Federated = var.oidc_provider_arn
-        },
-        Action = "sts:AssumeRoleWithWebIdentity",
-        Condition = {
-          StringEquals = {
-            "${replace(var.oidc_provider_url, "https://", "")}:sub" = "system:serviceaccount:jenkins:jenkins-sa"
-          }
-        }
-      }
+resource "aws_iam_role" "jenkins_kaniko_role" {
+  name               = "${var.cluster_name}-jenkins-kaniko-role"
+  assume_role_policy = data.aws_iam_policy_document.jenkins_kaniko_assume_role.json
+}
+
+# Data block для ECR політики Jenkins
+data "aws_iam_policy_document" "jenkins_ecr" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:GetAuthorizationToken",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeRepositories",
     ]
-  })
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "jenkins_ecr_policy" {
-  name = "${var.cluster_name}-jenkins-kaniko-ecr-policy"
-  role = aws_iam_role.jenkins_kaniko_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:PutImage",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload",
-          "ecr:DescribeRepositories"
-        ],
-        Resource = "*"
-      }
-    ]
-  })
+  name   = "${var.cluster_name}-jenkins-kaniko-ecr-policy"
+  role   = aws_iam_role.jenkins_kaniko_role.id
+  policy = data.aws_iam_policy_document.jenkins_ecr.json
 }
 
 

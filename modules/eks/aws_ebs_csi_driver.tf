@@ -5,25 +5,27 @@ resource "aws_iam_openid_connect_provider" "oidc" {
   thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da0ecd6c6f9"]
 }
 
+# Data block для assume role політики EBS CSI Driver
+data "aws_iam_policy_document" "ebs_csi_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.oidc.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(aws_eks_cluster.eks.identity[0].oidc[0].issuer, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
 # IAM роль для EBS CSI Driver
 resource "aws_iam_role" "ebs_csi_irsa_role" {
-  name = "${var.cluster_name}-ebs-csi-irsa-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Federated = aws_iam_openid_connect_provider.oidc.arn
-      },
-      Action = "sts:AssumeRoleWithWebIdentity",
-      Condition = {
-        StringEquals = {
-          "${replace(aws_eks_cluster.eks.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
-        }
-      }
-    }]
-  })
+  name               = "${var.cluster_name}-ebs-csi-irsa-role"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_assume_role.json
 }
 
 # Прикріплюємо офіційну політику до цієї ролі

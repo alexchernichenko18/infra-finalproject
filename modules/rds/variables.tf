@@ -90,6 +90,17 @@ variable "tags" {
   default = {}
 }
 
+variable "db_port" {
+  description = "Port for the database engine"
+  type        = number
+  default     = 5432
+}
+
+variable "vpc_cidr_block" {
+  description = "CIDR block of the VPC for RDS ingress"
+  type        = string
+}
+
 variable "parameter_group_family_aurora" {
   type    = string
   default = "aurora-postgresql15"
